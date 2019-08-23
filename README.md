@@ -4,136 +4,13 @@
 
 A full adder is a digital circuit that performs addition. Full adders are implemented with logic gates in hardware. A full adder adds three one-bit binary numbers, two operands and a carry bit. The adder outputs two numbers, a sum and a carry bit. For this module have 3 input and 2 outputs.
 
-# 'ADDER' TestBench Without Monitor, Agent and Scoreboard 
-
-Adder module
-
-      module adder(
-            input clk,
-            input reset,
-            input [3:0] a,
-            input [3:0] b,
-            input valid,
-            output [6:0] c); 
-  
-        reg [6:0] tmp_c;
-  
-        //Reset 
-        always @(posedge reset) 
-            tmp_c <= 0;
-   
-        // addition operation
-        always @(posedge clk) 
-            if (valid)    tmp_c <= a + b;
-          
-            assign c = tmp_c;
-
-      endmodule
 
 
-
-Testbench coding:
-
-      //including interfcae and testcase files
-      `include "interface.sv"
-      //Particular testcase can be run by uncommenting, and commenting the rest
-      `include "random_test.sv"
-
-      module tbench_top;
-        //clock and reset signal declaration
-        bit clk;
-        bit reset;
-  
-        //clock generation
-        always #5 clk = ~clk;
-  
-        //reset Generation
-        initial begin
-          reset = 1;
-          #5 reset =0;
-        end
-  
-        //creatinng instance of interface, inorder to connect DUT and testcase
-        intf i_intf(clk,reset);
-  
-        //Testcase instance, interface handle is passed to test as an argument
-        test t1(i_intf);
-  
-        //DUT instance, interface signals are connected to the DUT ports
-        adder DUT (
-        .clk(i_intf.clk),
-        .reset(i_intf.reset),
-        .a(i_intf.a),
-        .b(i_intf.b),
-        .valid(i_intf.valid),
-        .c(i_intf.c)
-        );
-  
-        //enabling the wave dump
-        initial begin 
-        $dumpfile("dump.vcd"); $dumpvars;
-          end
-        endmodule
-
-Class Driver:
-
-        class driver;
-  
-            //used to count the number of transactions
-            int no_transactions;
-            //creating virtual interface handle
-            virtual intf vif;
-   
-            //creating mailbox handle
-            mailbox gen2driv;
-   
-            //constructor
-            function new(virtual intf vif,mailbox gen2driv);
-                //getting the interface
-                this.vif = vif;
-                //getting the mailbox handles from  environment
-                this.gen2driv = gen2driv;
-            endfunction
-   
-            //Reset task, Reset the Interface signals to default/initial values
-           task reset;
-            wait(vif.reset);
-            $display("[ DRIVER ] ----- Reset Started -----");
-                  vif.a <= 0;
-                  vif.b <= 0;
-                  vif.valid <= 0;
-                  wait(!vif.reset);
-            $display("[ DRIVER ] ----- Reset Ended   -----");
-           endtask
-   
-            //drivers the transaction items to interface signals
-           task main;
-            forever begin
-            transaction trans;
-            gen2driv.get(trans);
-            @(posedge vif.clk);
-            vif.valid <= 1;
-            vif.a     <= trans.a;
-            vif.b     <= trans.b;
-            @(posedge vif.clk);
-            vif.valid <= 0;
-            trans.c   <= vif.c;
-            @(posedge vif.clk);
-            trans.display("[ Driver ]");
-            no_transactions++;
-            end
-          endtask
-           
-      endclass
-
-
-
-
-            /////////
-            /////////
-            // DUT //
-            /////////
-            /////////
+            ///////////
+            ///////////
+            //// DUT //
+            ///////////
+            ///////////
 
             module adder (
                   input clk,
@@ -156,6 +33,9 @@ Class Driver:
 	            assign c = tmp_c;
 
             endmodule
+	    
+	    
+	    
 
             ////////////////
             ////////////////
@@ -174,6 +54,9 @@ Class Driver:
             logic [6:0] c;
 
             endinterface
+
+
+
 
 
             //////////////////
@@ -197,6 +80,8 @@ Class Driver:
 	            $display("c = %0d", c);
             endfunction
             endclass
+
+
 
 
 
@@ -252,6 +137,11 @@ Class Driver:
 	            ->ended; //trigering indicates the end of generation
             endtask
             endclass
+
+
+
+
+
 
             //////////////
             //////////////
@@ -322,6 +212,10 @@ Class Driver:
             endclass
 
 
+
+
+
+
             ////////////////
             ////////////////
             //monitor.sv////
@@ -369,6 +263,10 @@ Class Driver:
             endclass
 
 
+
+
+
+
             ///////////////////
             ///////////////////
             //scoreboard.sv////
@@ -397,7 +295,7 @@ Class Driver:
             ///////////////////////////////////////////////////////
             //Compares the Actual result with the expected result//
             ///////////////////////////////////////////////////////
-            task main;
+                task main;
 	            transaction trans;
 	            forever begin
 		            mon2scb.get(trans);
@@ -407,9 +305,96 @@ Class Driver:
 		            $error("Wrong Result.\n\tExpeced: %0d Actual: %0d", (trans.a+trans.b),trans.c);
 	            no_transaction++;
 	            trans.display("[Scoreboard]");
-            end
-            endtask
+                    end
+                 endtask
             endclass
+	    
+	    
+	    
+	    
+	    
+	    
+	    
+
+	    //////////////////
+	    //////////////////
+            //Environment.sv//
+            //////////////////
+            //////////////////
+
+            `include "transaction.sv"
+            `include "generator.sv"
+            `include "driver.sv"
+            `include "monitor.sv"
+            `include "scoreboard.sv"
+             class environment;
+
+             /////////////////////////////////////
+             ///generator and driver instance/////
+             /////////////////////////////////////
+             generator gen;
+             driver driv;
+             monitor mon;
+             scoreboard scb;
+
+             ///////////////////////////////
+             ///mailbox handles/////////////
+             ///////////////////////////////
+             mailbox gen2driv;
+             mailbox mon2scb;
+
+             ////////////////////////////////
+             ////virtual interface///////////
+             ////////////////////////////////
+             virtual intf vif;
+
+             /////////////////////////////////
+             ////constructor//////////////////
+             /////////////////////////////////
+	     	function new(virtual intf vif);
+			this.vif = vif;  //get the interface from test
+	
+			//////////////////////////////////////
+			////creating the mailbox /////////////
+			//////////////////////////////////////
+			gen2driv = new();
+			mon2scb = new();
+
+			//////////////////////////////////////
+			////creating generator and driver////
+			//////////////////////////////////////
+			gen  = new(gen2driv);
+			driv = new(vif, gen2driv);
+			mon  = new(vif, mon2scb);
+			scb  = new(mon2scb);
+
+		endfunction
+
+		task pre_test();
+			driv.reset();
+		endtask
+
+		task test();
+			fork
+				gen.main();
+				driv.main();
+				mon.main();
+				scb.main();
+			join_any
+		endtask
+	
+		////////////////////////////
+		///////run task/////////////
+		////////////////////////////
+		task run;
+			pre_test();
+			test();
+			post_test();
+			$finish;
+		endtask
+	
+	    endclass
+
 
 
 
@@ -469,6 +454,12 @@ Class Driver:
             );
 
             endmodule
+	    
+	    
+	    
+	    
+	    
+	    
 
             ////////////////
             ////////////////
@@ -490,6 +481,10 @@ Class Driver:
 	            env.run();//calling run of env, it interns calls generator and driver main tasks.
             end
             endprogram
+	    
+	    
+	    
+	    
 
             //////////////////
             //////////////////
